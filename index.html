@@ -1,64 +1,444 @@
 <!doctype html>
 <html lang="en">
-    <head>
-        <meta charset="utf-8">
-        <meta http-equiv="X-UA-Compatible" content="IE=edge">
-        <meta name="viewport" content="initial-scale=1,user-scalable=no,maximum-scale=1,width=device-width">
-        <meta name="mobile-web-app-capable" content="yes">
-        <meta name="apple-mobile-web-app-capable" content="yes">
-        <link rel="stylesheet" href="./resources/ol.css">
-        <link rel="stylesheet" href="resources/fontawesome-all.min.css">
-        <link href="resources/photon-geocoder-autocomplete.min.css" rel="stylesheet">
-        <link rel="stylesheet" href="./resources/ol-layerswitcher.css">
-        <link rel="stylesheet" href="./resources/qgis2web.css">
-        <style>
-        html, body {
-            background-color: #ffffff;
-        }
-        .ol-control > * {
-            background-color: #f8f8f8!important;
-            color: #444444!important;
-            border-radius: 0px;
-        }
-        .ol-attribution a, .gcd-gl-input::placeholder, .search-layer-input-search::placeholder {
-            color: #444444!important;
-        }
-        .search-layer-input-search {
-            background-color: #f8f8f8!important;
-        }
-        .ol-control > *:focus, .ol-control >*:hover {
-            background-color: rgba(248, 248, 248, 0.7)!important;
-        } 
-        .ol-control {
-            background-color: rgba(255,255,255,.4) !important;
-            padding: 2px !important;
-        } 
-        </style>
 
-        <style>
+<head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="initial-scale=1,user-scalable=no,maximum-scale=1,width=device-width">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    
+    <!-- Menggunakan OpenLayers dari CDN -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/ol@v9.1.0/ol.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+
+    <title>Peta Interaktif Kesesuaian Lahan</title>
+    <style>
+        /* CSS untuk membuat peta fullscreen */
+        html,
+        body,
         #map {
-            width: 797px;
-            height: 744px;
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden; /* Mencegah scrollbar */
         }
-        </style>
-        <title></title>
-    </head>
-    <body>
-        <div id="map">
-            <div id="popup" class="ol-popup">
-                <a href="#" id="popup-closer" class="ol-popup-closer"></a>
-                <div id="popup-content"></div>
-            </div>
-        </div>
-        <script src="resources/qgis2web_expressions.js"></script>
-        <script src="./resources/functions.js"></script>
-        <script src="./resources/ol.js"></script>
-        <script src="./resources/ol-layerswitcher.js"></script>
-        <script src="resources/photon-geocoder-autocomplete.min.js"></script>
-        <script src="layers/KesesuaianUrbanAgriculture20_1.js"></script><script src="layers/KesesuaianUrbanAgriculture10_2.js"></script><script src="layers/BatasKabupaten_3.js"></script>
-        <script src="styles/KesesuaianUrbanAgriculture20_1_style.js"></script><script src="styles/KesesuaianUrbanAgriculture10_2_style.js"></script><script src="styles/BatasKabupaten_3_style.js"></script>
-        <script src="./layers/layers.js" type="text/javascript"></script> 
-        <script src="./resources/Autolinker.min.js"></script>
-        <script src="./resources/qgis2web.js"></script>
-    </body>
+
+        /* Styling untuk popup info */
+        .ol-popup {
+            position: absolute;
+            background-color: white;
+            box-shadow: 0 1px 4px rgba(0, 0, 0, 0.2);
+            padding: 15px;
+            border-radius: 10px;
+            border: 1px solid #cccccc;
+            bottom: 12px;
+            left: -50px;
+            min-width: 280px;
+        }
+
+        .ol-popup:after,
+        .ol-popup:before {
+            top: 100%;
+            border: solid transparent;
+            content: " ";
+            height: 0;
+            width: 0;
+            position: absolute;
+            pointer-events: none;
+        }
+
+        .ol-popup:after {
+            border-top-color: white;
+            border-width: 10px;
+            left: 48px;
+            margin-left: -10px;
+        }
+
+        .ol-popup:before {
+            border-top-color: #cccccc;
+            border-width: 11px;
+            left: 48px;
+            margin-left: -11px;
+        }
+
+        .ol-popup-closer {
+            text-decoration: none;
+            position: absolute;
+            top: 2px;
+            right: 8px;
+        }
+
+        .ol-popup-closer:after {
+            content: "✖";
+        }
+
+        #popup-content {
+            font-size: 14px;
+            font-family: sans-serif;
+        }
+
+        /* Styling untuk panel pemilih layer di atas */
+        .layer-switcher-panel {
+            position: absolute;
+            top: 10px;
+            left: 50%;
+            transform: translateX(-50%);
+            background-color: rgba(255, 255, 255, 0.85);
+            padding: 8px;
+            border-radius: 8px;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+            z-index: 1000;
+            display: flex;
+            gap: 10px;
+        }
+
+        .layer-button {
+            padding: 10px 15px;
+            border: 1px solid #ccc;
+            background-color: #f0f0f0;
+            cursor: pointer;
+            border-radius: 5px;
+            font-family: sans-serif;
+            font-weight: bold;
+            transition: background-color 0.3s, color 0.3s;
+        }
+
+        .layer-button.active,
+        .layer-button:hover {
+            background-color: #007bff;
+            color: white;
+            border-color: #0056b3;
+        }
+        
+        /* Styling untuk legenda */
+        .legend-panel {
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            background-color: rgba(255, 255, 255, 0.9);
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+            z-index: 1000;
+            font-family: sans-serif;
+            max-width: 250px;
+        }
+        .legend-title {
+            font-weight: bold;
+            margin-bottom: 10px;
+            font-size: 16px;
+            border-bottom: 1px solid #ddd;
+            padding-bottom: 5px;
+        }
+        .legend-item {
+            display: flex;
+            align-items: center;
+            margin-bottom: 5px;
+        }
+        .legend-color-box {
+            width: 20px;
+            height: 20px;
+            margin-right: 10px;
+            border: 1px solid #555;
+            flex-shrink: 0;
+        }
+    </style>
+</head>
+
+<body>
+    <div id="map"></div>
+
+    <!-- Kontainer untuk pemilih layer -->
+    <div id="layer-switcher" class="layer-switcher-panel">
+        <button id="btn-ua1" class="layer-button">Kesesuaian Urban Agriculture 1.0</button>
+        <button id="btn-ua2" class="layer-button">Kesesuaian Urban Agriculture 2.0</button>
+    </div>
+
+    <!-- Kontainer untuk legenda -->
+    <div id="legend" class="legend-panel"></div>
+
+    <!-- Kontainer untuk popup -->
+    <div id="popup" class="ol-popup">
+        <a href="#" id="popup-closer" class="ol-popup-closer"></a>
+        <div id="popup-content"></div>
+    </div>
+
+    <!-- Menggunakan OpenLayers dari CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/ol@v9.1.0/dist/ol.js"></script>
+
+    <script type="text/javascript">
+        // --- DATA & STYLE SIMULASI ---
+        // Data dan style disesuaikan dengan legenda dari gambar QGIS
+
+        // Data GeoJSON Simulasi (Diperbarui dengan kategori baru)
+        const geojsonUA1 = {
+            'type': 'FeatureCollection',
+            'features': [
+                { 'type': 'Feature', 'properties': { 'Keterangan': 'Sangat Sesuai' }, 'geometry': { 'type': 'Polygon', 'coordinates': [[[102.8, -3.3], [102.9, -3.3], [102.9, -3.4], [102.8, -3.4], [102.8, -3.3]]] } },
+                { 'type': 'Feature', 'properties': { 'Keterangan': 'Sesuai' }, 'geometry': { 'type': 'Polygon', 'coordinates': [[[102.9, -3.3], [103.0, -3.3], [103.0, -3.4], [102.9, -3.4], [102.9, -3.3]]] } },
+                { 'type': 'Feature', 'properties': { 'Keterangan': 'Agak Sesuai' }, 'geometry': { 'type': 'Polygon', 'coordinates': [[[103.0, -3.3], [103.1, -3.3], [103.1, -3.4], [103.0, -3.4], [103.0, -3.3]]] } },
+                { 'type': 'Feature', 'properties': { 'Keterangan': 'Kurang Sesuai' }, 'geometry': { 'type': 'Polygon', 'coordinates': [[[103.1, -3.3], [103.2, -3.3], [103.2, -3.4], [103.1, -3.4], [103.1, -3.3]]] } },
+                { 'type': 'Feature', 'properties': { 'Keterangan': 'Tidak Sesuai' }, 'geometry': { 'type': 'Polygon', 'coordinates': [[[103.2, -3.3], [103.3, -3.3], [103.3, -3.4], [103.2, -3.4], [103.2, -3.3]]] } },
+            ]
+        };
+        const geojsonUA2 = {
+            'type': 'FeatureCollection',
+            'features': [
+                 { 'type': 'Feature', 'properties': { 'Keterangan': 'Sangat Sesuai' }, 'geometry': { 'type': 'Polygon', 'coordinates': [[[102.8, -3.5], [102.9, -3.5], [102.9, -3.6], [102.8, -3.6], [102.8, -3.5]]] } },
+                 { 'type': 'Feature', 'properties': { 'Keterangan': 'Sesuai' }, 'geometry': { 'type': 'Polygon', 'coordinates': [[[102.9, -3.5], [103.0, -3.5], [103.0, -3.6], [102.9, -3.6], [102.9, -3.5]]] } },
+                 { 'type': 'Feature', 'properties': { 'Keterangan': 'Agak Sesuai' }, 'geometry': { 'type': 'Polygon', 'coordinates': [[[103.0, -3.5], [103.1, -3.5], [103.1, -3.6], [103.0, -3.6], [103.0, -3.5]]] } },
+                 { 'type': 'Feature', 'properties': { 'Keterangan': 'Kurang Sesuai' }, 'geometry': { 'type': 'Polygon', 'coordinates': [[[103.1, -3.5], [103.2, -3.5], [103.2, -3.6], [103.1, -3.6], [103.1, -3.5]]] } },
+                 { 'type': 'Feature', 'properties': { 'Keterangan': 'Tidak Sesuai' }, 'geometry': { 'type': 'Polygon', 'coordinates': [[[103.2, -3.5], [103.3, -3.5], [103.3, -3.6], [103.2, -3.6], [103.2, -3.5]]] } },
+            ]
+        };
+        const geojsonBatasKabupaten = {
+            'type': 'FeatureCollection',
+            'features': [
+                { 'type': 'Feature', 'properties': {}, 'geometry': { 'type': 'Polygon', 'coordinates': [[[102.7, -3.2], [103.4, -3.2], [103.4, -3.9], [102.7, -3.9], [102.7, -3.2]]] } }
+            ]
+        };
+
+        // Fungsi Style (Diperbarui dengan warna & kategori baru)
+        const styleCacheUA1 = {};
+        const styleFunctionUA1 = function (feature) {
+            const keterangan = feature.get('Keterangan');
+            let style = styleCacheUA1[keterangan];
+            if (!style) {
+                let color = '';
+                switch (keterangan) {
+                    case 'Sangat Sesuai': color = 'rgba(0, 109, 44, 0.7)'; break;
+                    case 'Sesuai': color = 'rgba(102, 194, 164, 0.7)'; break;
+                    case 'Agak Sesuai': color = 'rgba(255, 255, 191, 0.7)'; break;
+                    case 'Kurang Sesuai': color = 'rgba(254, 178, 76, 0.7)'; break;
+                    case 'Tidak Sesuai': color = 'rgba(215, 25, 28, 0.7)'; break;
+                    default: color = 'rgba(128, 128, 128, 0.7)';
+                }
+                style = new ol.style.Style({
+                    fill: new ol.style.Fill({ color: color }),
+                    stroke: new ol.style.Stroke({ color: 'rgba(50,50,50,0.8)', width: 1 })
+                });
+                styleCacheUA1[keterangan] = style;
+            }
+            return style;
+        };
+
+        const styleCacheUA2 = {};
+        const styleFunctionUA2 = function (feature) {
+             const keterangan = feature.get('Keterangan');
+            let style = styleCacheUA2[keterangan];
+            if (!style) {
+                let color = '';
+                switch (keterangan) {
+                    case 'Sangat Sesuai': color = 'rgba(37, 52, 148, 0.7)'; break;
+                    case 'Sesuai': color = 'rgba(65, 182, 196, 0.7)'; break;
+                    case 'Agak Sesuai': color = 'rgba(255, 255, 204, 0.7)'; break;
+                    case 'Kurang Sesuai': color = 'rgba(254, 178, 76, 0.7)'; break;
+                    case 'Tidak Sesuai': color = 'rgba(227, 26, 28, 0.7)'; break;
+                    default: color = 'rgba(128, 128, 128, 0.7)';
+                }
+                style = new ol.style.Style({
+                    fill: new ol.style.Fill({ color: color }),
+                    stroke: new ol.style.Stroke({ color: 'rgba(50,50,50,0.8)', width: 1 })
+                });
+                styleCacheUA2[keterangan] = style;
+            }
+            return style;
+        };
+        
+        const styleBatasKabupaten = new ol.style.Style({
+            stroke: new ol.style.Stroke({
+                color: 'rgba(255, 255, 255, 0.9)',
+                width: 3
+            })
+        });
+
+        // --- INISIALISASI PETA ---
+        
+        const container = document.getElementById('popup');
+        const content = document.getElementById('popup-content');
+        const closer = document.getElementById('popup-closer');
+
+        const popupOverlay = new ol.Overlay({
+            element: container,
+            autoPan: { animation: { duration: 250 } },
+        });
+
+        closer.onclick = function () {
+            popupOverlay.setPosition(undefined);
+            closer.blur();
+            return false;
+        };
+
+        const googleSatelliteLayer = new ol.layer.Tile({
+            source: new ol.source.XYZ({
+                url: 'https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}',
+                attributions: '© Google',
+                maxZoom: 20
+            })
+        });
+
+        const layerUA1 = new ol.layer.Vector({
+            source: new ol.source.Vector({
+                features: new ol.format.GeoJSON().readFeatures(geojsonUA1, {
+                    dataProjection: 'EPSG:4326', featureProjection: 'EPSG:3857'
+                }),
+            }),
+            style: styleFunctionUA1,
+            title: 'Kesesuaian Urban Agriculture 1.0',
+            visible: true
+        });
+
+        const layerUA2 = new ol.layer.Vector({
+            source: new ol.source.Vector({
+                features: new ol.format.GeoJSON().readFeatures(geojsonUA2, {
+                    dataProjection: 'EPSG:4326', featureProjection: 'EPSG:3857'
+                }),
+            }),
+            style: styleFunctionUA2,
+            title: 'Kesesuaian Urban Agriculture 2.0',
+            visible: false
+        });
+
+        const layerBatasKabupaten = new ol.layer.Vector({
+            source: new ol.source.Vector({
+                features: new ol.format.GeoJSON().readFeatures(geojsonBatasKabupaten, {
+                     dataProjection: 'EPSG:4326', featureProjection: 'EPSG:3857'
+                }),
+            }),
+            style: styleBatasKabupaten,
+            title: 'Batas Kabupaten'
+        });
+
+        const map = new ol.Map({
+            target: 'map',
+            layers: [googleSatelliteLayer, layerUA1, layerUA2, layerBatasKabupaten],
+            overlays: [popupOverlay],
+            view: new ol.View({
+                center: ol.proj.fromLonLat([103.05, -3.45]),
+                zoom: 12
+            }),
+            controls: ol.control.defaults({ attributionOptions: { collapsible: false } })
+        });
+
+        // --- INTERAKSI PETA ---
+
+        const hoverStyle = new ol.style.Style({
+            fill: new ol.style.Fill({ color: 'rgba(255, 255, 0, 0.4)' }),
+            stroke: new ol.style.Stroke({ color: '#ffff00', width: 3 })
+        });
+
+        let selected = null;
+        map.on('pointermove', function (e) {
+            if (e.dragging) return;
+            
+            const pixel = map.getEventPixel(e.originalEvent);
+            const hit = map.hasFeatureAtPixel(pixel, {
+                layerFilter: layer => layer === layerUA1 || layer === layerUA2
+            });
+            map.getTargetElement().style.cursor = hit ? 'pointer' : '';
+
+            if (selected !== null) {
+                selected.setStyle(undefined);
+                selected = null;
+            }
+
+            map.forEachFeatureAtPixel(e.pixel, function (f, layer) {
+                if (layer === layerUA1 || layer === layerUA2) {
+                    selected = f;
+                    f.setStyle(hoverStyle);
+                    return true;
+                }
+            }, { hitTolerance: 5 });
+        });
+
+        map.on('singleclick', function (evt) {
+            const coordinate = evt.coordinate;
+            let featureInfo = '';
+            
+            map.forEachFeatureAtPixel(evt.pixel, function (feature, layer) {
+                if(layer === layerUA1 || layer === layerUA2) {
+                    const props = feature.getProperties();
+                    featureInfo += `<b>Layer:</b> ${layer.get('title')}<br>`;
+                    featureInfo += `<b>Keterangan:</b> ${props.Keterangan || 'N/A'}<br>`;
+                }
+            }, { hitTolerance: 5 });
+
+            if (featureInfo) {
+                content.innerHTML = featureInfo;
+                popupOverlay.setPosition(coordinate);
+            } else {
+                popupOverlay.setPosition(undefined);
+                closer.blur();
+            }
+        });
+
+        // --- LOGIKA PEMILIH LAYER & LEGENDA ---
+        const btnUA1 = document.getElementById('btn-ua1');
+        const btnUA2 = document.getElementById('btn-ua2');
+        const legendContainer = document.getElementById('legend');
+
+        // Data legenda diperbarui sesuai gambar QGIS
+        const legendData = {
+            'Kesesuaian Urban Agriculture 1.0': [
+                { color: 'rgba(215, 25, 28, 0.7)', label: 'Tidak Sesuai' },
+                { color: 'rgba(254, 178, 76, 0.7)', label: 'Kurang Sesuai' },
+                { color: 'rgba(255, 255, 191, 0.7)', label: 'Agak Sesuai' },
+                { color: 'rgba(102, 194, 164, 0.7)', label: 'Sesuai' },
+                { color: 'rgba(0, 109, 44, 0.7)', label: 'Sangat Sesuai' }
+            ],
+            'Kesesuaian Urban Agriculture 2.0': [
+                { color: 'rgba(227, 26, 28, 0.7)', label: 'Tidak Sesuai' },
+                { color: 'rgba(254, 178, 76, 0.7)', label: 'Kurang Sesuai' },
+                { color: 'rgba(255, 255, 204, 0.7)', label: 'Agak Sesuai' },
+                { color: 'rgba(65, 182, 196, 0.7)', label: 'Sesuai' },
+                { color: 'rgba(37, 52, 148, 0.7)', label: 'Sangat Sesuai' }
+            ]
+        };
+
+        function updateLegend(layerTitle) {
+            const data = legendData[layerTitle];
+            if (!data) {
+                legendContainer.innerHTML = '';
+                return;
+            }
+
+            let html = `<div class="legend-title">${layerTitle}</div>`;
+            // Balik urutan agar 'Sangat Sesuai' di atas
+            [...data].reverse().forEach(item => {
+                html += `
+                    <div class="legend-item">
+                        <div class="legend-color-box" style="background-color: ${item.color};"></div>
+                        <span>${item.label}</span>
+                    </div>
+                `;
+            });
+            legendContainer.innerHTML = html;
+        }
+
+        function switchActiveLayer(layerToShow) {
+            if (layerToShow === 'ua1') {
+                layerUA1.setVisible(true);
+                layerUA2.setVisible(false);
+                btnUA1.classList.add('active');
+                btnUA2.classList.remove('active');
+                updateLegend(layerUA1.get('title'));
+            } else {
+                layerUA1.setVisible(false);
+                layerUA2.setVisible(true);
+                btnUA1.classList.remove('active');
+                btnUA2.classList.add('active');
+                updateLegend(layerUA2.get('title'));
+            }
+        }
+
+        btnUA1.addEventListener('click', () => switchActiveLayer('ua1'));
+        btnUA2.addEventListener('click', () => switchActiveLayer('ua2'));
+
+        // Inisialisasi tampilan awal
+        switchActiveLayer('ua1');
+
+    </script>
+</body>
 </html>
