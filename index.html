@@ -1,135 +1,186 @@
 <!doctype html>
 <html lang="en">
-
 <head>
-    <meta charset="utf-8">
-    <meta http-equiv="X-UA-Compatible" content="IE=edge">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>Peta Urban Agriculture</title>
-    
-    <link rel="stylesheet" href="./resources/ol.css">
-    <link rel="stylesheet" href="./resources/ol-layerswitcher.css">
-    <link rel="stylesheet" href="./resources/qgis2web.css">
+  <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="initial-scale=1,maximum-scale=1,user-scalable=no,width=device-width">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
 
-    <style>
-        html, body {
-            margin: 0;
-            padding: 0;
-            height: 100%;
-            width: 100%;
-        }
+  <title>Urban Agriculture Suitability Map</title>
 
-        #map {
-            height: 100%;
-            width: 100%;
-        }
+  <link rel="stylesheet" href="./resources/ol.css">
+  <link rel="stylesheet" href="./resources/fontawesome-all.min.css">
+  <link rel="stylesheet" href="./resources/photon-geocoder-autocomplete.min.css">
+  <link rel="stylesheet" href="./resources/ol-layerswitcher.css">
+  <link rel="stylesheet" href="./resources/qgis2web.css">
 
-        .hover-highlight {
-            fill: rgba(255, 255, 0, 0.3); /* Kuning transparan */
-            stroke: #ffff00;
-        }
-    </style>
+  <style>
+    html, body, #map {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+      background-color: #ffffff;
+    }
+
+    .ol-control > * {
+      background-color: #f8f8f8!important;
+      color: #444!important;
+      border-radius: 0;
+    }
+
+    .ol-control > *:focus, .ol-control > *:hover {
+      background-color: rgba(248, 248, 248, 0.7)!important;
+    }
+
+    .ol-control {
+      background-color: rgba(255, 255, 255, 0.4)!important;
+      padding: 2px!important;
+    }
+
+    .ol-attribution a,
+    .gcd-gl-input::placeholder,
+    .search-layer-input-search::placeholder {
+      color: #444!important;
+    }
+
+    .search-layer-input-search {
+      background-color: #f8f8f8!important;
+    }
+
+    .ol-layerswitcher {
+      top: 10px;
+      right: 10px;
+    }
+
+    .ol-popup {
+      position: absolute;
+      background-color: white;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.2);
+      padding: 15px;
+      border-radius: 10px;
+      border: 1px solid #cccccc;
+      bottom: 12px;
+      left: -50px;
+      min-width: 200px;
+    }
+
+    .ol-popup:after, .ol-popup:before {
+      top: 100%;
+      border: solid transparent;
+      content: " ";
+      height: 0;
+      width: 0;
+      position: absolute;
+      pointer-events: none;
+    }
+
+    .ol-popup-closer {
+      text-decoration: none;
+      position: absolute;
+      top: 2px;
+      right: 8px;
+    }
+  </style>
 </head>
 
 <body>
-    <div id="map" class="map"></div>
+  <div id="map">
+    <div id="popup" class="ol-popup">
+      <a href="#" id="popup-closer" class="ol-popup-closer">×</a>
+      <div id="popup-content"></div>
+    </div>
+  </div>
 
-    <!-- JS resources -->
-    <script src="./resources/ol.js"></script>
-    <script src="./resources/ol-layerswitcher.js"></script>
+  <!-- Scripts -->
+  <script src="resources/qgis2web_expressions.js"></script>
+  <script src="./resources/functions.js"></script>
+  <script src="./resources/ol.js"></script>
+  <script src="./resources/ol-layerswitcher.js"></script>
+  <script src="resources/photon-geocoder-autocomplete.min.js"></script>
 
-    <!-- Load layers -->
-    <script src="layers/KesesuaianUrbanAgriculture10_2.js"></script>
-    <script src="layers/KesesuaianUrbanAgriculture20_1.js"></script>
-    <script src="layers/BatasKabupaten_3.js"></script>
-    <script src="styles/KesesuaianUrbanAgriculture10_2_style.js"></script>
-    <script src="styles/KesesuaianUrbanAgriculture20_1_style.js"></script>
-    <script src="styles/BatasKabupaten_3_style.js"></script>
+  <!-- Layer Data -->
+  <script src="layers/KesesuaianUrbanAgriculture20_1.js"></script>
+  <script src="layers/KesesuaianUrbanAgriculture10_2.js"></script>
+  <script src="layers/BatasKabupaten_3.js"></script>
 
-    <script>
-        // Base Layer
-        const googleSatellite = new ol.layer.Tile({
-            title: "Google Satellite",
-            type: "base",
-            visible: true,
-            source: new ol.source.XYZ({
-                url: "http://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}"
-            })
-        });
+  <!-- Layer Style -->
+  <script src="styles/KesesuaianUrbanAgriculture20_1_style.js"></script>
+  <script src="styles/KesesuaianUrbanAgriculture10_2_style.js"></script>
+  <script src="styles/BatasKabupaten_3_style.js"></script>
 
-        // Overlay Layers
-        const agri10 = new ol.layer.Vector({
-            title: 'Kesesuaian Urban Agriculture 1.0',
-            source: jsonSource_KesesuaianUrbanAgriculture10_2,
-            style: style_KesesuaianUrbanAgriculture10_2,
-            visible: true
-        });
+  <!-- Layer init (default selection and order) -->
+  <script>
+    // Base layers
+    var baseLayer_GoogleSatellite = new ol.layer.Tile({
+      title: 'Google Satellite',
+      type: 'base',
+      visible: true,
+      source: new ol.source.XYZ({
+        url: 'http://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}'
+      })
+    });
 
-        const agri20 = new ol.layer.Vector({
-            title: 'Kesesuaian Urban Agriculture 2.0',
-            source: jsonSource_KesesuaianUrbanAgriculture20_1,
-            style: style_KesesuaianUrbanAgriculture20_1,
-            visible: false
-        });
+    var baseLayer_BatasKabupaten = lyr_BatasKabupaten_3;
+    baseLayer_BatasKabupaten.setOpacity(1);
+    baseLayer_BatasKabupaten.setZIndex(99); // ensure it's above base
 
-        const batasKabupaten = new ol.layer.Vector({
-            title: 'Batas Kabupaten',
-            source: jsonSource_BatasKabupaten_3,
-            style: style_BatasKabupaten_3,
-            visible: true
-        });
+    // Overlay layers
+    var layer_UA_1 = lyr_KesesuaianUrbanAgriculture10_2;
+    var layer_UA_2 = lyr_KesesuaianUrbanAgriculture20_1;
 
-        // Map
-        const map = new ol.Map({
-            target: 'map',
-            layers: [googleSatellite, batasKabupaten, agri10, agri20],
-            view: new ol.View({
-                center: ol.proj.fromLonLat([102.5, 0.5]), // Sesuaikan dengan posisi peta
-                zoom: 8
-            }),
-            controls: ol.control.defaults().extend([
-                new ol.control.LayerSwitcher({
-                    tipLabel: 'Pilih Layer'
-                }),
-                new ol.control.FullScreen()
-            ])
-        });
+    // Set default visibility
+    layer_UA_1.setVisible(true);
+    layer_UA_2.setVisible(false);
 
-        // Hover Effect
-        const highlightStyle = new ol.style.Style({
-            fill: new ol.style.Fill({
-                color: 'rgba(255, 255, 0, 0.3)'
-            }),
-            stroke: new ol.style.Stroke({
-                color: '#ffff00',
-                width: 2
-            })
-        });
+    // Add to map
+    var map = new ol.Map({
+      target: 'map',
+      layers: [
+        baseLayer_GoogleSatellite,
+        baseLayer_BatasKabupaten,
+        layer_UA_1,
+        layer_UA_2
+      ],
+      view: new ol.View({
+        center: ol.proj.fromLonLat([110.3671, -7.7956]), // Sesuaikan lokasi
+        zoom: 11
+      }),
+      controls: ol.control.defaults().extend([
+        new ol.control.LayerSwitcher({ tipLabel: 'Layer' })
+      ])
+    });
 
-        let highlight;
-        const displayFeatureInfo = function (pixel) {
-            const feature = map.forEachFeatureAtPixel(pixel, function (feature) {
-                return feature;
-            });
+    // Hovering yellow transparent style
+    const highlightStyle = new ol.style.Style({
+      fill: new ol.style.Fill({
+        color: 'rgba(255, 255, 0, 0.4)'
+      }),
+      stroke: new ol.style.Stroke({
+        color: '#ffff00',
+        width: 1
+      })
+    });
 
-            if (feature !== highlight) {
-                if (highlight) {
-                    highlight.setStyle(undefined);
-                }
-                if (feature) {
-                    feature.setStyle(highlightStyle);
-                }
-                highlight = feature;
-            }
-        };
+    let highlight;
+    map.on('pointermove', function (evt) {
+      if (evt.dragging) return;
 
-        map.on('pointermove', function (evt) {
-            if (evt.dragging) {
-                return;
-            }
-            const pixel = map.getEventPixel(evt.originalEvent);
-            displayFeatureInfo(pixel);
-        });
-    </script>
+      const pixel = map.getEventPixel(evt.originalEvent);
+      const feature = map.forEachFeatureAtPixel(pixel, function (f) {
+        return f;
+      });
+
+      if (feature !== highlight) {
+        if (highlight) highlight.setStyle(undefined);
+        if (feature) feature.setStyle(highlightStyle);
+        highlight = feature;
+      }
+    });
+  </script>
+
+  <script src="./resources/Autolinker.min.js"></script>
+  <script src="./resources/qgis2web.js"></script>
 </body>
 </html>
