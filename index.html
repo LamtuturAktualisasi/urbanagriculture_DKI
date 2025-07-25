@@ -270,10 +270,11 @@
       overlay.setPosition(coordinate);
     }
 
+    // Single click: hanya layer yang sedang aktif
     map.on('singleclick', function(evt) {
       let clickedLayer = null;
       const feature = map.forEachFeatureAtPixel(evt.pixel, function(feat, layer) {
-        if (layer === ua10 || layer === ua20) {
+        if ((ua10.getVisible() && layer === ua10) || (ua20.getVisible() && layer === ua20)) {
           clickedLayer = layer;
           return feat;
         }
@@ -289,7 +290,7 @@
       showPopup(feature, layerLabel, evt.coordinate);
     });
 
-    // ====== SEARCH kelurahan/kecamatan/kota
+    // ====== SEARCH kelurahan/kecamatan/kota (sesuai layer aktif)
     const searchBox = document.getElementById('searchBox');
     document.getElementById('btnSearch').addEventListener('click', runSearch);
     searchBox.addEventListener('keydown', function(e){
@@ -300,8 +301,18 @@
       const q = (searchBox.value || '').trim().toLowerCase();
       if (!q) return;
 
-      const activeLayer = ua10.getVisible() ? ua10 : ua20;
-      const layerLabel  = ua10.getVisible() ? 'Urban Agriculture 1.0' : 'Urban Agriculture 2.0';
+      let activeLayer = null;
+      let layerLabel = '';
+      if (ua20.getVisible()) {
+        activeLayer = ua20;
+        layerLabel = 'Urban Agriculture 2.0';
+      } else if (ua10.getVisible()) {
+        activeLayer = ua10;
+        layerLabel = 'Urban Agriculture 1.0';
+      } else {
+        alert('Tidak ada layer aktif untuk pencarian.');
+        return;
+      }
 
       const feats = activeLayer.getSource().getFeatures();
       let found = null;
@@ -319,7 +330,6 @@
       if (found) {
         const ext = found.getGeometry().getExtent();
         map.getView().fit(ext, { padding: [40,40,40,40], duration: 400 });
-
         const coord = ol.extent.getCenter(ext);
         showPopup(found, layerLabel, coord);
       } else {
