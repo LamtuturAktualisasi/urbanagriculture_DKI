@@ -7,34 +7,63 @@
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
 
-  <!-- CSS dari qgis2web / OpenLayers -->
+  <!-- CSS -->
   <link rel="stylesheet" href="./resources/ol.css">
   <link rel="stylesheet" href="resources/fontawesome-all.min.css">
-  <link href="resources/photon-geocoder-autocomplete.min.css" rel="stylesheet">
   <link rel="stylesheet" href="./resources/ol-layerswitcher.css">
   <link rel="stylesheet" href="./resources/qgis2web.css">
 
   <style>
     html, body {
-      margin: 0;
-      padding: 0;
-      width: 100%;
-      height: 100%;
+      margin: 0; padding: 0; width: 100%; height: 100%;
       background-color: #ffffff;
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
     }
-    #map {
-      width: 100%;
-      height: 100%;
+    #map { width: 100%; height: 100%; }
+
+    /* Toolbar */
+    .toolbar {
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      z-index: 1001;
+      background: rgba(255,255,255,0.9);
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      padding: 8px 10px;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.2);
+      display: flex;
+      gap: 6px;
+      align-items: center;
+    }
+    .toolbar input[type="text"]{
+      height: 28px;
+      line-height: 28px;
+      border: 1px solid #ccc;
+      border-radius: 3px;
+      padding: 0 6px;
+      min-width: 230px;
+    }
+    .toolbar button{
+      height: 30px;
+      line-height: 28px;
+      border: 1px solid #ccc;
+      border-radius: 3px;
+      background: #f8f8f8;
+      cursor: pointer;
+    }
+    .toolbar button:hover{
+      background: #efefef;
     }
 
-    /* Tetap pakai LayerSwitcher kanan-atas seperti bawaan qgis2web */
+    /* Layer switcher tetap terbuka */
     .ol-control {
       background-color: rgba(255,255,255,.4) !important;
       padding: 2px !important;
     }
     .ol-control > * {
       background-color: #f8f8f8!important;
-      color: #444444!important;
+      color: #444!important;
       border-radius: 0px;
     }
     .ol-control > *:focus, .ol-control > *:hover {
@@ -51,23 +80,51 @@
       background-color: white;
       box-shadow: 0 1px 4px rgba(0,0,0,0.2);
       padding: 10px;
-      border-radius: 4px;
+      border-radius: 6px;
       border: 1px solid #cccccc;
-      min-width: 260px;
+      min-width: 300px;
     }
     .ol-popup-closer {
       text-decoration: none;
       position: absolute;
-      top: 2px;
+      top: 6px;
       right: 8px;
       font-weight: bold;
     }
     .ol-popup-closer:after { content: "✕"; }
+
+    .ol-popup h3{
+      margin: 0 0 4px 0;
+    }
+    .ol-popup hr{
+      margin: 6px 0 8px 0;
+    }
+    .ol-popup table{
+      border-collapse: collapse;
+      width: 100%;
+      font-size: 13px;
+    }
+    .ol-popup table td{
+      padding: 3px 4px;
+      vertical-align: top;
+    }
+    .ol-popup table td:first-child{
+      font-weight: 600;
+      width: 55%;
+    }
   </style>
 
   <title>Peta Urban Agriculture DKI Jakarta</title>
 </head>
 <body>
+  <!-- Toolbar -->
+  <div class="toolbar">
+    <input type="text" id="searchBox" placeholder="Cari kelurahan/kecamatan/kota..." />
+    <button id="btnSearch">Cari</button>
+    <button id="btnZoomJakarta">Zoom ke Jakarta</button>
+  </div>
+
+  <!-- Map -->
   <div id="map">
     <div id="popup" class="ol-popup" style="display:none;">
       <a href="#" id="popup-closer" class="ol-popup-closer"></a>
@@ -80,9 +137,8 @@
   <script src="./resources/functions.js"></script>
   <script src="./resources/ol.js"></script>
   <script src="./resources/ol-layerswitcher.js"></script>
-  <script src="resources/photon-geocoder-autocomplete.min.js"></script>
 
-  <!-- LAYERS dari qgis2web -->
+  <!-- Layers & styles (hasil export qgis2web) -->
   <script src="layers/KesesuaianUrbanAgriculture20_1.js"></script>
   <script src="layers/KesesuaianUrbanAgriculture10_2.js"></script>
   <script src="layers/BatasKabupaten_3.js"></script>
@@ -94,7 +150,7 @@
   <script src="./resources/Autolinker.min.js"></script>
 
   <script>
-    // ===== Base map Google
+    // ===== Base map
     const baseGoogle = new ol.layer.Tile({
       title: 'Google Satelit',
       type: 'base',
@@ -104,35 +160,56 @@
       })
     });
 
-    // ===== Layers (nama variabel mengikuti hasil export qgis2web)
+    // ===== Layers dari qgis2web
     const ua20 = lyr_KesesuaianUrbanAgriculture20_1;
     const ua10 = lyr_KesesuaianUrbanAgriculture10_2;
     const batasKabupaten = lyr_BatasKabupaten_3;
 
-    // Tampilkan 1.0 saat awal, 2.0 disembunyikan
+    // Default tampil UA 1.0
     ua10.setVisible(true);
     ua20.setVisible(false);
 
-    // Garis batas tebal
+    // Batas kabupaten lebih tegas
     batasKabupaten.setZIndex(10);
     batasKabupaten.setStyle(new ol.style.Style({
       stroke: new ol.style.Stroke({ color: '#000000', width: 2 }),
       fill: null
     }));
 
-    // ===== Buat peta
+    // ===== Map
+    const layerSwitcher = new ol.control.LayerSwitcher({
+      tipLabel: 'Layer', groupSelectStyle: 'children'
+    });
+
     const map = new ol.Map({
       target: 'map',
       layers: [baseGoogle, batasKabupaten, ua10, ua20],
       view: new ol.View({
-        // Fokus langsung ke DKI (daratan) – tidak pakai fit supaya tidak ikut Kep. Seribu
-        center: ol.proj.fromLonLat([106.8456, -6.2088]), // Monas-ish
+        center: ol.proj.fromLonLat([106.8456, -6.2088]),
         zoom: 12
       }),
-      controls: ol.control.defaults().extend([
-        new ol.control.LayerSwitcher({ tipLabel: 'Layer', groupSelectStyle: 'children' })
-      ])
+      controls: ol.control.defaults().extend([layerSwitcher])
     });
+
+    // Paksa legend (layer switcher) tetap terbuka
+    if (layerSwitcher && layerSwitcher.showPanel) {
+      layerSwitcher.showPanel();
+    } else {
+      // fallback: "klik" tombolnya
+      setTimeout(() => {
+        const btn = document.querySelector('.layer-switcher button');
+        if (btn) btn.click();
+      }, 100);
+    }
+
+    // ===== Zoom ke Jakarta (tanpa Kep. Seribu) – bounding box perkiraan
+    const jakartaExtentLonLat = [106.69, -6.39, 106.99, -6.05];
+    function zoomToJakarta() {
+      const extent3857 = ol.proj.transformExtent(jakartaExtentLonLat, 'EPSG:4326', 'EPSG:3857');
+      map.getView().fit(extent3857, { padding: [40,40,40,40], duration: 400 });
+    }
+    document.getElementById('btnZoomJakarta').addEventListener('click', zoomToJakarta);
+    map.once('postrender', zoomToJakarta);
 
     // ===== Hover style
     const hoverStyle = new ol.style.Style({
@@ -169,6 +246,30 @@
       return (v === undefined || v === null || v === '') ? '-' : v;
     }
 
+    function buildPopupHTML(layerTitle, p) {
+      return `
+        <h3>${layerTitle}</h3>
+        <hr>
+        <table>
+          <tr><td>Kategori Kesesuaian</td><td>: ${safe(p.Keterangan)}</td></tr>
+          <tr><td>Kelurahan</td><td>: ${safe(p.WADMKD)}</td></tr>
+          <tr><td>Kecamatan</td><td>: ${safe(p.WADMKC)}</td></tr>
+          <tr><td>Kota</td><td>: ${safe(p.WADMKK)}</td></tr>
+          <tr><td>Nilai Ecological Environment</td><td>: ${safe(p.Ecological)}</td></tr>
+          <tr><td>Social Demand</td><td>: ${safe(p['Sosial Dem'])}</td></tr>
+          <tr><td>Investment Cost</td><td>: ${safe(p.Investment)}</td></tr>
+          <tr><td>Nilai Kesesuaian</td><td>: ${safe(p.Kesesuaian)}</td></tr>
+        </table>
+      `;
+    }
+
+    function showPopup(feature, layerLabel, coordinate) {
+      const p = feature.getProperties();
+      content.innerHTML = buildPopupHTML(layerLabel, p);
+      container.style.display = 'block';
+      overlay.setPosition(coordinate);
+    }
+
     map.on('singleclick', function(evt) {
       let clickedLayer = null;
       const feature = map.forEachFeatureAtPixel(evt.pixel, function(feat, layer) {
@@ -184,30 +285,50 @@
         return;
       }
 
-      const p = feature.getProperties();
-      const title = (clickedLayer === ua10) ? 'Urban Agriculture 1.0' : 'Urban Agriculture 2.0';
-
-      content.innerHTML = `
-        <h3 style="margin:0 0 6px 0;">${title}</h3>
-        <b>Kategori Kesesuaian:</b> ${safe(p.Keterangan)}<br>
-        <b>Kelurahan:</b> ${safe(p.WADMKD)}<br>
-        <b>Kecamatan:</b> ${safe(p.WADMKC)}<br>
-        <b>Kota:</b> ${safe(p.WADMKK)}<br>
-        <b>Nilai Ecological Environment:</b> ${safe(p.Ecological)}<br>
-        <b>Social Demand:</b> ${safe(p['Sosial Dem'])}<br>
-        <b>Investment Cost:</b> ${safe(p.Investment)}<br>
-        <b>Nilai Kesesuaian:</b> ${safe(p.Kesesuaian)}
-      `;
-
-      container.style.display = 'block';
-      overlay.setPosition(evt.coordinate);
+      const layerLabel = (clickedLayer === ua10) ? 'Urban Agriculture 1.0' : 'Urban Agriculture 2.0';
+      showPopup(feature, layerLabel, evt.coordinate);
     });
 
-    // Jika Anda tetap ingin tombol/aksi untuk refit ke DKI saja kapan pun:
-    // function refitJakarta() {
-    //   const extent = ol.proj.transformExtent([106.69, -6.39, 106.99, -6.05], 'EPSG:4326', 'EPSG:3857');
-    //   map.getView().fit(extent, { padding: [40,40,40,40], duration: 300 });
-    // }
+    // ====== SEARCH kelurahan/kecamatan/kota
+    const searchBox = document.getElementById('searchBox');
+    document.getElementById('btnSearch').addEventListener('click', runSearch);
+    searchBox.addEventListener('keydown', function(e){
+      if (e.key === 'Enter') runSearch();
+    });
+
+    function runSearch() {
+      const q = (searchBox.value || '').trim().toLowerCase();
+      if (!q) return;
+
+      // Layer aktif mana?
+      const activeLayer = ua10.getVisible() ? ua10 : ua20;
+      const layerLabel  = ua10.getVisible() ? 'Urban Agriculture 1.0' : 'Urban Agriculture 2.0';
+
+      const feats = activeLayer.getSource().getFeatures();
+      let found = null;
+      for (let f of feats) {
+        const p = f.getProperties();
+        const kel  = (p.WADMKD || '').toLowerCase();
+        const kec  = (p.WADMKC || '').toLowerCase();
+        const kota = (p.WADMKK || '').toLowerCase();
+        if (kel.includes(q) || kec.includes(q) || kota.includes(q)) {
+          found = f;
+          break;
+        }
+      }
+
+      if (found) {
+        const ext = found.getGeometry().getExtent();
+        map.getView().fit(ext, { padding: [40,40,40,40], duration: 400 });
+
+        // Tampilkan popup di centroid poligon
+        const geom = found.getGeometry();
+        const coord = ol.extent.getCenter(ext);
+        showPopup(found, layerLabel, coord);
+      } else {
+        alert('Tidak ditemukan pada layer aktif.');
+      }
+    }
   </script>
 </body>
 </html>
