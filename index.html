@@ -1,172 +1,173 @@
 <!doctype html>
 <html lang="en">
-    <head>
-        <meta charset="utf-8">
-        <meta http-equiv="X-UA-Compatible" content="IE=edge">
-        <meta name="viewport" content="initial-scale=1,user-scalable=no,maximum-scale=1,width=device-width">
-        <meta name="mobile-web-app-capable" content="yes">
-        <meta name="apple-mobile-web-app-capable" content="yes">
-        <link rel="stylesheet" href="./resources/ol.css">
-        <link rel="stylesheet" href="resources/fontawesome-all.min.css">
-        <link href="resources/photon-geocoder-autocomplete.min.css" rel="stylesheet">
-        <link rel="stylesheet" href="./resources/ol-layerswitcher.css">
-        <link rel="stylesheet" href="./resources/qgis2web.css">
-        <style>
-        html, body {
-            background-color: #ffffff;
+<head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="initial-scale=1,user-scalable=no,maximum-scale=1,width=device-width">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+
+    <link rel="stylesheet" href="./resources/ol.css">
+    <link rel="stylesheet" href="resources/fontawesome-all.min.css">
+    <link href="resources/photon-geocoder-autocomplete.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="./resources/ol-layerswitcher.css">
+    <link rel="stylesheet" href="./resources/qgis2web.css">
+
+    <style>
+        html, body, #map {
             margin: 0;
             padding: 0;
-            width: 100%;
-            height: 100%;
-            overflow: hidden;
+            width: 100vw;
+            height: 100vh;
         }
+
         .ol-control > * {
             background-color: #f8f8f8!important;
             color: #444444!important;
             border-radius: 0px;
         }
+
         .ol-attribution a, .gcd-gl-input::placeholder, .search-layer-input-search::placeholder {
             color: #444444!important;
         }
+
         .search-layer-input-search {
             background-color: #f8f8f8!important;
         }
+
         .ol-control > *:focus, .ol-control >*:hover {
             background-color: rgba(248, 248, 248, 0.7)!important;
-        } 
+        }
+
         .ol-control {
             background-color: rgba(255,255,255,.4) !important;
             padding: 2px !important;
         }
-        .ol-popup {
-            background-color: white;
-            padding: 10px;
-            border-radius: 3px;
-            box-shadow: 0 1px 4px rgba(0,0,0,0.2);
-        }
-        .ol-popup-closer {
-            text-decoration: none;
-            position: absolute;
-            top: 2px;
-            right: 8px;
-        }
-        .highlight {
-            fill-opacity: 0.5;
-            stroke: yellow;
-            stroke-width: 3;
-        }
-        </style>
 
-        <style>
-        #map {
-            width: 100%;
-            height: 100%;
-            position: fixed;
+        .hover-highlight {
+            stroke: yellow;
+            stroke-width: 2px;
+            fill: rgba(255,255,0,0.3);
         }
-        </style>
-        <title>Urban Agriculture Suitability Map</title>
-    </head>
-    <body>
-        <div id="map">
-            <div id="popup" class="ol-popup">
-                <a href="#" id="popup-closer" class="ol-popup-closer"></a>
-                <div id="popup-content"></div>
-            </div>
+
+        .ol-layerswitcher {
+            top: 10px;
+            right: 10px;
+        }
+    </style>
+
+    <title>Urban Agriculture Map</title>
+</head>
+<body>
+    <div id="map">
+        <div id="popup" class="ol-popup">
+            <a href="#" id="popup-closer" class="ol-popup-closer"></a>
+            <div id="popup-content"></div>
         </div>
-        <script src="resources/qgis2web_expressions.js"></script>
-        <script src="./resources/functions.js"></script>
-        <script src="./resources/ol.js"></script>
-        <script src="./resources/ol-layerswitcher.js"></script>
-        <script src="resources/photon-geocoder-autocomplete.min.js"></script>
-        <script src="layers/KesesuaianUrbanAgriculture20_1.js"></script>
-        <script src="layers/KesesuaianUrbanAgriculture10_2.js"></script>
-        <script src="layers/BatasKabupaten_3.js"></script>
-        <script src="styles/KesesuaianUrbanAgriculture20_1_style.js"></script>
-        <script src="styles/KesesuaianUrbanAgriculture10_2_style.js"></script>
-        <script src="styles/BatasKabupaten_3_style.js"></script>
-        <script src="./layers/layers.js" type="text/javascript"></script> 
-        <script src="./resources/Autolinker.min.js"></script>
-        <script src="./resources/qgis2web.js"></script>
-        
-        <script>
-        document.addEventListener('DOMContentLoaded', function() {
-            // Make map full screen
-            document.getElementById('map').style.width = '100%';
-            document.getElementById('map').style.height = '100%';
-            
-            // Set initial layer visibility
-            setTimeout(function() {
-                // Assuming layer names from your files
-                var layers = map.getLayers().getArray();
-                
-                // Hide all layers first
-                layers.forEach(function(layer) {
-                    layer.setVisible(false);
-                });
-                
-                // Show Google Satellite base layer
-                layers.forEach(function(layer) {
-                    if (layer.get('title') === 'Google Satellite') {
-                        layer.setVisible(true);
-                    }
-                });
-                
-                // Show Batas Kabupaten layer (outline only)
-                layers.forEach(function(layer) {
-                    if (layer.get('title') === 'BatasKabupaten') {
-                        layer.setVisible(true);
-                        // You might need to adjust the style to show only outline
-                    }
-                });
-                
-                // Show Kesesuaian Urban Agriculture 1.0 by default
-                layers.forEach(function(layer) {
-                    if (layer.get('title') === 'KesesuaianUrbanAgriculture10') {
-                        layer.setVisible(true);
-                    }
-                });
-                
-                // Add hover effect
-                map.on('pointermove', function(evt) {
-                    var highlightLayer;
-                    layers.forEach(function(layer) {
-                        if (layer.get('title') === 'highlight') {
-                            highlightLayer = layer;
-                        }
-                    });
-                    
-                    if (!highlightLayer) {
-                        highlightLayer = new ol.layer.Vector({
-                            title: 'highlight',
-                            source: new ol.source.Vector(),
-                            style: new ol.style.Style({
-                                fill: new ol.style.Fill({
-                                    color: 'rgba(255, 255, 0, 0.5)'
-                                }),
-                                stroke: new ol.style.Stroke({
-                                    color: 'yellow',
-                                    width: 2
-                                })
-                            }),
-                            zIndex: 100
-                        });
-                        map.addLayer(highlightLayer);
-                    }
-                    
-                    highlightLayer.getSource().clear();
-                    
-                    map.forEachFeatureAtPixel(evt.pixel, function(feature, layer) {
-                        if (layer.get('title') === 'KesesuaianUrbanAgriculture10' || 
-                            layer.get('title') === 'KesesuaianUrbanAgriculture20') {
-                            var highlightFeature = feature.clone();
-                            highlightFeature.setStyle(null);
-                            highlightLayer.getSource().addFeature(highlightFeature);
-                        }
-                        return true; // Stop after first feature
-                    });
-                });
-            }, 1000);
+    </div>
+
+    <script src="resources/qgis2web_expressions.js"></script>
+    <script src="./resources/functions.js"></script>
+    <script src="./resources/ol.js"></script>
+    <script src="./resources/ol-layerswitcher.js"></script>
+    <script src="resources/photon-geocoder-autocomplete.min.js"></script>
+
+    <!-- Layer & Style Scripts -->
+    <script src="layers/KesesuaianUrbanAgriculture20_1.js"></script>
+    <script src="layers/KesesuaianUrbanAgriculture10_2.js"></script>
+    <script src="layers/BatasKabupaten_3.js"></script>
+
+    <script src="styles/KesesuaianUrbanAgriculture20_1_style.js"></script>
+    <script src="styles/KesesuaianUrbanAgriculture10_2_style.js"></script>
+    <script src="styles/BatasKabupaten_3_style.js"></script>
+
+    <script src="./resources/Autolinker.min.js"></script>
+
+    <script>
+        // Inisialisasi Map
+        const map = new ol.Map({
+            target: 'map',
+            layers: [],
+            view: new ol.View({
+                center: ol.proj.fromLonLat([106.8, -2.5]),
+                zoom: 10
+            }),
+            controls: ol.control.defaults().extend([
+                new ol.control.FullScreen(),
+                new ol.control.LayerSwitcher({ tipLabel: 'Layers' })
+            ])
         });
-        </script>
-    </body>
+
+        // Base Layer: Google Satellite
+        const googleSat = new ol.layer.Tile({
+            title: 'Google Satellite',
+            type: 'base',
+            visible: true,
+            source: new ol.source.XYZ({
+                url: 'http://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}'
+            })
+        });
+
+        // Outline Batas Kabupaten
+        const batasKabupatenLayer = new ol.layer.Vector({
+            title: 'Batas Kabupaten',
+            source: jsonSource_BatasKabupaten_3,
+            style: style_BatasKabupaten_3,
+            visible: true
+        });
+
+        // Urban Agriculture 1.0
+        const ua1 = new ol.layer.Vector({
+            title: 'Kesesuaian Urban Agriculture 1.0',
+            source: jsonSource_KesesuaianUrbanAgriculture10_2,
+            style: style_KesesuaianUrbanAgriculture10_2,
+            visible: true
+        });
+
+        // Urban Agriculture 2.0
+        const ua2 = new ol.layer.Vector({
+            title: 'Kesesuaian Urban Agriculture 2.0',
+            source: jsonSource_KesesuaianUrbanAgriculture20_1,
+            style: style_KesesuaianUrbanAgriculture20_1,
+            visible: false
+        });
+
+        // Tambahkan ke map
+        map.addLayer(googleSat);
+        map.addLayer(batasKabupatenLayer);
+        map.addLayer(ua1);
+        map.addLayer(ua2);
+
+        // Hover effect
+        const highlightStyle = new ol.style.Style({
+            stroke: new ol.style.Stroke({
+                color: 'yellow',
+                width: 2
+            }),
+            fill: new ol.style.Fill({
+                color: 'rgba(255, 255, 0, 0.3)'
+            })
+        });
+
+        let highlight;
+        const featureOverlay = new ol.layer.Vector({
+            source: new ol.source.Vector(),
+            map: map,
+            style: highlightStyle
+        });
+
+        map.on('pointermove', function(evt) {
+            if (highlight) {
+                featureOverlay.getSource().removeFeature(highlight);
+                highlight = null;
+            }
+
+            map.forEachFeatureAtPixel(evt.pixel, function(feature) {
+                highlight = feature;
+                featureOverlay.getSource().addFeature(feature);
+            });
+        });
+
+    </script>
+</body>
 </html>
