@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta http-equiv="X-UA-Compatible" content="IE=edge">
-  <meta name="viewport" content="initial-scale=1,user-scalable=no,maximum-scale=1,width=device-width">
+  <meta name="viewport" content="initial-scale=1,user-scalable=no,maximum=1,width=device-width">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
 
@@ -12,6 +12,8 @@
   <link rel="stylesheet" href="resources/fontawesome-all.min.css">
   <link rel="stylesheet" href="./resources/ol-layerswitcher.css">
   <link rel="stylesheet" href="./resources/qgis2web.css">
+
+  <title>Peta Urban Agriculture DKI Jakarta</title>
 
   <style>
     html, body {
@@ -56,7 +58,7 @@
       background: #efefef;
     }
 
-    /* Layer switcher tetap terbuka */
+    /* Layer switcher selalu terbuka */
     .ol-control {
       background-color: rgba(255,255,255,.4) !important;
       padding: 2px !important;
@@ -79,10 +81,10 @@
       position: absolute;
       background-color: white;
       box-shadow: 0 1px 4px rgba(0,0,0,0.2);
-      padding: 10px;
-      border-radius: 6px;
+      padding: 12px 14px 10px 14px;
+      border-radius: 8px;
       border: 1px solid #cccccc;
-      min-width: 300px;
+      min-width: 320px;
     }
     .ol-popup-closer {
       text-decoration: none;
@@ -95,6 +97,7 @@
 
     .ol-popup h3{
       margin: 0 0 4px 0;
+      font-size: 18px;
     }
     .ol-popup hr{
       margin: 6px 0 8px 0;
@@ -113,9 +116,8 @@
       width: 55%;
     }
   </style>
-
-  <title>Peta Urban Agriculture DKI Jakarta</title>
 </head>
+
 <body>
   <!-- Toolbar -->
   <div class="toolbar">
@@ -138,7 +140,7 @@
   <script src="./resources/ol.js"></script>
   <script src="./resources/ol-layerswitcher.js"></script>
 
-  <!-- Layers & styles (hasil export qgis2web) -->
+  <!-- Layers & styles (hasil qgis2web) -->
   <script src="layers/KesesuaianUrbanAgriculture20_1.js"></script>
   <script src="layers/KesesuaianUrbanAgriculture10_2.js"></script>
   <script src="layers/BatasKabupaten_3.js"></script>
@@ -165,11 +167,10 @@
     const ua10 = lyr_KesesuaianUrbanAgriculture10_2;
     const batasKabupaten = lyr_BatasKabupaten_3;
 
-    // Default tampil UA 1.0
+    // Default: tampil UA 1.0
     ua10.setVisible(true);
     ua20.setVisible(false);
 
-    // Batas kabupaten lebih tegas
     batasKabupaten.setZIndex(10);
     batasKabupaten.setStyle(new ol.style.Style({
       stroke: new ol.style.Stroke({ color: '#000000', width: 2 }),
@@ -191,18 +192,17 @@
       controls: ol.control.defaults().extend([layerSwitcher])
     });
 
-    // Paksa legend (layer switcher) tetap terbuka
+    // Paksa legend tetap terbuka
     if (layerSwitcher && layerSwitcher.showPanel) {
       layerSwitcher.showPanel();
     } else {
-      // fallback: "klik" tombolnya
       setTimeout(() => {
         const btn = document.querySelector('.layer-switcher button');
         if (btn) btn.click();
       }, 100);
     }
 
-    // ===== Zoom ke Jakarta (tanpa Kep. Seribu) – bounding box perkiraan
+    // ===== Zoom ke Jakarta (tanpa Kep. Seribu)
     const jakartaExtentLonLat = [106.69, -6.39, 106.99, -6.05];
     function zoomToJakarta() {
       const extent3857 = ol.proj.transformExtent(jakartaExtentLonLat, 'EPSG:4326', 'EPSG:3857');
@@ -249,13 +249,13 @@
     function buildPopupHTML(layerTitle, p) {
       return `
         <h3>${layerTitle}</h3>
+        <b>${safe(p.Keterangan)}</b>
         <hr>
         <table>
-          <tr><td>Kategori Kesesuaian</td><td>: ${safe(p.Keterangan)}</td></tr>
           <tr><td>Kelurahan</td><td>: ${safe(p.WADMKD)}</td></tr>
           <tr><td>Kecamatan</td><td>: ${safe(p.WADMKC)}</td></tr>
           <tr><td>Kota</td><td>: ${safe(p.WADMKK)}</td></tr>
-          <tr><td>Nilai Ecological Environment</td><td>: ${safe(p.Ecological)}</td></tr>
+          <tr><td>Ecological Environment</td><td>: ${safe(p.Ecological)}</td></tr>
           <tr><td>Social Demand</td><td>: ${safe(p['Sosial Dem'])}</td></tr>
           <tr><td>Investment Cost</td><td>: ${safe(p.Investment)}</td></tr>
           <tr><td>Nilai Kesesuaian</td><td>: ${safe(p.Kesesuaian)}</td></tr>
@@ -300,7 +300,6 @@
       const q = (searchBox.value || '').trim().toLowerCase();
       if (!q) return;
 
-      // Layer aktif mana?
       const activeLayer = ua10.getVisible() ? ua10 : ua20;
       const layerLabel  = ua10.getVisible() ? 'Urban Agriculture 1.0' : 'Urban Agriculture 2.0';
 
@@ -321,8 +320,6 @@
         const ext = found.getGeometry().getExtent();
         map.getView().fit(ext, { padding: [40,40,40,40], duration: 400 });
 
-        // Tampilkan popup di centroid poligon
-        const geom = found.getGeometry();
         const coord = ol.extent.getCenter(ext);
         showPopup(found, layerLabel, coord);
       } else {
