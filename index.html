@@ -22,6 +22,21 @@
       font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
     }
     #map { width: 100%; height: 100%; }
+    
+    /* Loading indicator */
+    #loading {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      z-index: 9999;
+      background: white;
+      padding: 20px;
+      border-radius: 8px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+      font-size: 16px;
+    }
+    #loading.hidden { display: none; }
 
     /* Toolbar */
     .toolbar {
@@ -115,10 +130,28 @@
       font-weight: 600;
       width: 55%;
     }
+    
+    /* Error message */
+    .error-box {
+      position: absolute;
+      bottom: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: #ff4444;
+      color: white;
+      padding: 12px 20px;
+      border-radius: 4px;
+      z-index: 9999;
+      max-width: 80%;
+      text-align: center;
+    }
   </style>
 </head>
 
 <body>
+  <!-- Loading -->
+  <div id="loading">Memuat peta...</div>
+  
   <!-- Toolbar -->
   <div class="toolbar">
     <input type="text" id="searchBox" placeholder="Cari kelurahan/kecamatan/kota..." />
@@ -152,189 +185,220 @@
   <script src="./resources/Autolinker.min.js"></script>
 
   <script>
-    // ===== Base map
-    const baseGoogle = new ol.layer.Tile({
-      title: 'Google Satelit',
-      type: 'base',
-      visible: true,
-      source: new ol.source.XYZ({
-        url: 'http://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}'
-      })
-    });
-
-    // ===== Layers dari qgis2web
-    const ua20 = lyr_KesesuaianUrbanAgriculture20_1;
-    const ua10 = lyr_KesesuaianUrbanAgriculture10_2;
-    const batasKabupaten = lyr_BatasKabupaten_3;
-
-    // Default: tampil UA 1.0
-    ua10.setVisible(true);
-    ua20.setVisible(false);
-
-    batasKabupaten.setZIndex(10);
-    batasKabupaten.setStyle(new ol.style.Style({
-      stroke: new ol.style.Stroke({ color: '#000000', width: 2 }),
-      fill: null
-    }));
-
-    // ===== Map
-    const layerSwitcher = new ol.control.LayerSwitcher({
-      tipLabel: 'Layer', groupSelectStyle: 'children'
-    });
-
-    const map = new ol.Map({
-      target: 'map',
-      layers: [baseGoogle, batasKabupaten, ua10, ua20],
-      view: new ol.View({
-        center: ol.proj.fromLonLat([106.8456, -6.2088]),
-        zoom: 12
-      }),
-      controls: ol.control.defaults().extend([layerSwitcher])
-    });
-
-    // Paksa legend tetap terbuka
-    if (layerSwitcher && layerSwitcher.showPanel) {
-      layerSwitcher.showPanel();
-    } else {
-      setTimeout(() => {
-        const btn = document.querySelector('.layer-switcher button');
-        if (btn) btn.click();
-      }, 100);
-    }
-
-    // ===== Zoom ke Jakarta (tanpa Kep. Seribu)
-    const jakartaExtentLonLat = [106.69, -6.39, 106.99, -6.05];
-    function zoomToJakarta() {
-      const extent3857 = ol.proj.transformExtent(jakartaExtentLonLat, 'EPSG:4326', 'EPSG:3857');
-      map.getView().fit(extent3857, { padding: [40,40,40,40], duration: 400 });
-    }
-    document.getElementById('btnZoomJakarta').addEventListener('click', zoomToJakarta);
-    map.once('postrender', zoomToJakarta);
-
-    // ===== Hover style
-    const hoverStyle = new ol.style.Style({
-      stroke: new ol.style.Stroke({ color: 'yellow', width: 2 }),
-      fill: new ol.style.Fill({ color: 'rgba(255,255,0,0.3)' })
-    });
-    const selectPointerMove = new ol.interaction.Select({
-      condition: ol.events.condition.pointerMove,
-      style: hoverStyle,
-      layers: [ua10, ua20]
-    });
-    map.addInteraction(selectPointerMove);
-
-    // ===== Popup
-    const container = document.getElementById('popup');
-    const content   = document.getElementById('popup-content');
-    const closer    = document.getElementById('popup-closer');
-
-    const overlay = new ol.Overlay({
-      element: container,
-      autoPan: true,
-      autoPanAnimation: { duration: 250 }
-    });
-    map.addOverlay(overlay);
-
-    closer.onclick = function () {
-      overlay.setPosition(undefined);
-      container.style.display = 'none';
-      closer.blur();
+    // Error handling
+    window.onerror = function(msg, url, line) {
+      console.error('Error: ' + msg + '\nURL: ' + url + '\nLine: ' + line);
+      document.getElementById('loading').innerHTML = '⚠️ Error loading map resources. Check console for details.';
       return false;
     };
 
-    function safe(v) {
-      return (v === undefined || v === null || v === '') ? '-' : v;
-    }
+    try {
+      // Check if required variables exist
+      if (typeof lyr_KesesuaianUrbanAgriculture20_1 === 'undefined' || 
+          typeof lyr_KesesuaianUrbanAgriculture10_2 === 'undefined' ||
+          typeof lyr_BatasKabupaten_3 === 'undefined') {
+        throw new Error('Layer data files not loaded. Please check if all files exist in the correct directories.');
+      }
 
-    function buildPopupHTML(layerTitle, p) {
-      return `
-        <h3>${layerTitle}</h3>
-        <b>${safe(p.Keterangan)}</b>
-        <hr>
-        <table>
-          <tr><td>Kelurahan</td><td>: ${safe(p.WADMKD)}</td></tr>
-          <tr><td>Kecamatan</td><td>: ${safe(p.WADMKC)}</td></tr>
-          <tr><td>Kota</td><td>: ${safe(p.WADMKK)}</td></tr>
-          <tr><td>Ecological Environment</td><td>: ${safe(p.Ecological)}</td></tr>
-          <tr><td>Social Demand</td><td>: ${safe(p['Sosial Dem'])}</td></tr>
-          <tr><td>Investment Cost</td><td>: ${safe(p.Investment)}</td></tr>
-          <tr><td>Nilai Kesesuaian</td><td>: ${safe(p.Kesesuaian)}</td></tr>
-        </table>
-      `;
-    }
-
-    function showPopup(feature, layerLabel, coordinate) {
-      const p = feature.getProperties();
-      content.innerHTML = buildPopupHTML(layerLabel, p);
-      container.style.display = 'block';
-      overlay.setPosition(coordinate);
-    }
-
-    // Single click: hanya layer yang sedang aktif
-    map.on('singleclick', function(evt) {
-      let clickedLayer = null;
-      const feature = map.forEachFeatureAtPixel(evt.pixel, function(feat, layer) {
-        if ((ua10.getVisible() && layer === ua10) || (ua20.getVisible() && layer === ua20)) {
-          clickedLayer = layer;
-          return feat;
-        }
+      // ===== Base map - UBAH KE HTTPS
+      const baseGoogle = new ol.layer.Tile({
+        title: 'Google Satelit',
+        type: 'base',
+        visible: true,
+        source: new ol.source.XYZ({
+          url: 'https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}'
+        })
       });
 
-      if (!feature) {
+      // ===== Layers dari qgis2web
+      const ua20 = lyr_KesesuaianUrbanAgriculture20_1;
+      const ua10 = lyr_KesesuaianUrbanAgriculture10_2;
+      const batasKabupaten = lyr_BatasKabupaten_3;
+
+      // Default: tampil UA 1.0
+      ua10.setVisible(true);
+      ua20.setVisible(false);
+
+      batasKabupaten.setZIndex(10);
+      batasKabupaten.setStyle(new ol.style.Style({
+        stroke: new ol.style.Stroke({ color: '#000000', width: 2 }),
+        fill: null
+      }));
+
+      // ===== Map
+      const layerSwitcher = new ol.control.LayerSwitcher({
+        tipLabel: 'Layer', groupSelectStyle: 'children'
+      });
+
+      const map = new ol.Map({
+        target: 'map',
+        layers: [baseGoogle, batasKabupaten, ua10, ua20],
+        view: new ol.View({
+          center: ol.proj.fromLonLat([106.8456, -6.2088]),
+          zoom: 12
+        }),
+        controls: ol.control.defaults().extend([layerSwitcher])
+      });
+
+      // Hide loading after map is rendered
+      map.once('postrender', function() {
+        document.getElementById('loading').classList.add('hidden');
+      });
+
+      // Paksa legend tetap terbuka
+      if (layerSwitcher && layerSwitcher.showPanel) {
+        layerSwitcher.showPanel();
+      } else {
+        setTimeout(() => {
+          const btn = document.querySelector('.layer-switcher button');
+          if (btn) btn.click();
+        }, 100);
+      }
+
+      // ===== Zoom ke Jakarta (tanpa Kep. Seribu)
+      const jakartaExtentLonLat = [106.69, -6.39, 106.99, -6.05];
+      function zoomToJakarta() {
+        const extent3857 = ol.proj.transformExtent(jakartaExtentLonLat, 'EPSG:4326', 'EPSG:3857');
+        map.getView().fit(extent3857, { padding: [40,40,40,40], duration: 400 });
+      }
+      document.getElementById('btnZoomJakarta').addEventListener('click', zoomToJakarta);
+      map.once('postrender', zoomToJakarta);
+
+      // ===== Hover style
+      const hoverStyle = new ol.style.Style({
+        stroke: new ol.style.Stroke({ color: 'yellow', width: 2 }),
+        fill: new ol.style.Fill({ color: 'rgba(255,255,0,0.3)' })
+      });
+      const selectPointerMove = new ol.interaction.Select({
+        condition: ol.events.condition.pointerMove,
+        style: hoverStyle,
+        layers: [ua10, ua20]
+      });
+      map.addInteraction(selectPointerMove);
+
+      // ===== Popup
+      const container = document.getElementById('popup');
+      const content   = document.getElementById('popup-content');
+      const closer    = document.getElementById('popup-closer');
+
+      const overlay = new ol.Overlay({
+        element: container,
+        autoPan: true,
+        autoPanAnimation: { duration: 250 }
+      });
+      map.addOverlay(overlay);
+
+      closer.onclick = function () {
         overlay.setPosition(undefined);
         container.style.display = 'none';
-        return;
+        closer.blur();
+        return false;
+      };
+
+      function safe(v) {
+        return (v === undefined || v === null || v === '') ? '-' : v;
       }
 
-      const layerLabel = (clickedLayer === ua10) ? 'Urban Agriculture 1.0' : 'Urban Agriculture 2.0';
-      showPopup(feature, layerLabel, evt.coordinate);
-    });
-
-    // ====== SEARCH kelurahan/kecamatan/kota (sesuai layer aktif)
-    const searchBox = document.getElementById('searchBox');
-    document.getElementById('btnSearch').addEventListener('click', runSearch);
-    searchBox.addEventListener('keydown', function(e){
-      if (e.key === 'Enter') runSearch();
-    });
-
-    function runSearch() {
-      const q = (searchBox.value || '').trim().toLowerCase();
-      if (!q) return;
-
-      let activeLayer = null;
-      let layerLabel = '';
-      if (ua20.getVisible()) {
-        activeLayer = ua20;
-        layerLabel = 'Urban Agriculture 2.0';
-      } else if (ua10.getVisible()) {
-        activeLayer = ua10;
-        layerLabel = 'Urban Agriculture 1.0';
-      } else {
-        alert('Tidak ada layer aktif untuk pencarian.');
-        return;
+      function buildPopupHTML(layerTitle, p) {
+        return `
+          <h3>${layerTitle}</h3>
+          <b>${safe(p.Keterangan)}</b>
+          <hr>
+          <table>
+            <tr><td>Kelurahan</td><td>: ${safe(p.WADMKD)}</td></tr>
+            <tr><td>Kecamatan</td><td>: ${safe(p.WADMKC)}</td></tr>
+            <tr><td>Kota</td><td>: ${safe(p.WADMKK)}</td></tr>
+            <tr><td>Ecological Environment</td><td>: ${safe(p.Ecological)}</td></tr>
+            <tr><td>Social Demand</td><td>: ${safe(p['Sosial Dem'])}</td></tr>
+            <tr><td>Investment Cost</td><td>: ${safe(p.Investment)}</td></tr>
+            <tr><td>Nilai Kesesuaian</td><td>: ${safe(p.Kesesuaian)}</td></tr>
+          </table>
+        `;
       }
 
-      const feats = activeLayer.getSource().getFeatures();
-      let found = null;
-      for (let f of feats) {
-        const p = f.getProperties();
-        const kel  = (p.WADMKD || '').toLowerCase();
-        const kec  = (p.WADMKC || '').toLowerCase();
-        const kota = (p.WADMKK || '').toLowerCase();
-        if (kel.includes(q) || kec.includes(q) || kota.includes(q)) {
-          found = f;
-          break;
+      function showPopup(feature, layerLabel, coordinate) {
+        const p = feature.getProperties();
+        content.innerHTML = buildPopupHTML(layerLabel, p);
+        container.style.display = 'block';
+        overlay.setPosition(coordinate);
+      }
+
+      // Single click: hanya layer yang sedang aktif
+      map.on('singleclick', function(evt) {
+        let clickedLayer = null;
+        const feature = map.forEachFeatureAtPixel(evt.pixel, function(feat, layer) {
+          if ((ua10.getVisible() && layer === ua10) || (ua20.getVisible() && layer === ua20)) {
+            clickedLayer = layer;
+            return feat;
+          }
+        });
+
+        if (!feature) {
+          overlay.setPosition(undefined);
+          container.style.display = 'none';
+          return;
+        }
+
+        const layerLabel = (clickedLayer === ua10) ? 'Urban Agriculture 1.0' : 'Urban Agriculture 2.0';
+        showPopup(feature, layerLabel, evt.coordinate);
+      });
+
+      // ====== SEARCH kelurahan/kecamatan/kota (sesuai layer aktif)
+      const searchBox = document.getElementById('searchBox');
+      document.getElementById('btnSearch').addEventListener('click', runSearch);
+      searchBox.addEventListener('keydown', function(e){
+        if (e.key === 'Enter') runSearch();
+      });
+
+      function runSearch() {
+        const q = (searchBox.value || '').trim().toLowerCase();
+        if (!q) return;
+
+        let activeLayer = null;
+        let layerLabel = '';
+        if (ua20.getVisible()) {
+          activeLayer = ua20;
+          layerLabel = 'Urban Agriculture 2.0';
+        } else if (ua10.getVisible()) {
+          activeLayer = ua10;
+          layerLabel = 'Urban Agriculture 1.0';
+        } else {
+          alert('Tidak ada layer aktif untuk pencarian.');
+          return;
+        }
+
+        const feats = activeLayer.getSource().getFeatures();
+        let found = null;
+        for (let f of feats) {
+          const p = f.getProperties();
+          const kel  = (p.WADMKD || '').toLowerCase();
+          const kec  = (p.WADMKC || '').toLowerCase();
+          const kota = (p.WADMKK || '').toLowerCase();
+          if (kel.includes(q) || kec.includes(q) || kota.includes(q)) {
+            found = f;
+            break;
+          }
+        }
+
+        if (found) {
+          const ext = found.getGeometry().getExtent();
+          map.getView().fit(ext, { padding: [40,40,40,40], duration: 400 });
+          const coord = ol.extent.getCenter(ext);
+          showPopup(found, layerLabel, coord);
+        } else {
+          alert('Tidak ditemukan pada layer aktif.');
         }
       }
 
-      if (found) {
-        const ext = found.getGeometry().getExtent();
-        map.getView().fit(ext, { padding: [40,40,40,40], duration: 400 });
-        const coord = ol.extent.getCenter(ext);
-        showPopup(found, layerLabel, coord);
-      } else {
-        alert('Tidak ditemukan pada layer aktif.');
-      }
+    } catch (error) {
+      console.error('Map initialization error:', error);
+      document.getElementById('loading').innerHTML = '⚠️ Error: ' + error.message;
+      
+      // Show error box
+      const errorBox = document.createElement('div');
+      errorBox.className = 'error-box';
+      errorBox.innerHTML = '<strong>Error:</strong> ' + error.message;
+      document.body.appendChild(errorBox);
     }
   </script>
 </body>
